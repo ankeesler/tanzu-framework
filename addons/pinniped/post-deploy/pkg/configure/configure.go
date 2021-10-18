@@ -299,11 +299,11 @@ func Pinniped(ctx context.Context, c Clients, inspector inspect.Inspector, p *Pa
 
 		// create configmap for Pinniped info
 		if err := createOrUpdatePinnipedInfo(ctx, supervisor.PinnipedInfo{
-			MgmtClusterName:                  &p.ClusterName,
-			Issuer:                           &supervisorSvcEndpoint,
-			IssuerCABundleData:               &caData,
-			PinnipedAPIGroupSuffix:           p.PinnipedAPIGroupSuffix,
-			PinnipedConciergeIsClusterScoped: false,
+			MgmtClusterName:          &p.ClusterName,
+			Issuer:                   &supervisorSvcEndpoint,
+			IssuerCABundleData:       &caData,
+			ConciergeAPIGroupSuffix:  p.PinnipedAPIGroupSuffix,
+			ConciergeIsClusterScoped: false,
 		}, c.K8SClientset); err != nil {
 			return err
 		}
@@ -319,8 +319,8 @@ func Pinniped(ctx context.Context, c Clients, inspector inspect.Inspector, p *Pa
 
 		// create configmap for Pinniped info
 		if err := createOrUpdatePinnipedInfo(ctx, supervisor.PinnipedInfo{
-			PinnipedAPIGroupSuffix:           p.PinnipedAPIGroupSuffix,
-			PinnipedConciergeIsClusterScoped: false,
+			ConciergeAPIGroupSuffix:  p.PinnipedAPIGroupSuffix,
+			ConciergeIsClusterScoped: false,
 		}, c.K8SClientset); err != nil {
 			return err
 		}
