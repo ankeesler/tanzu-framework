@@ -1,0 +1,20 @@
+#@ load("@ytt:data", "data")
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: pinniped-config-controller-manager
+spec:
+  selector:
+    matchLabels:
+      app: pinniped-config-controller-manager
+  template:
+    metadata:
+      labels:
+        app: pinniped-config-controller-manager
+        rev: #@ data.values.rev
+    spec:
+      containers:
+      - image: harbor-repo.vmware.com/tkgiam/akeesler/pinniped-config-controller-manager:latest
+        name: pinniped-config-controller-manager
+        imagePullPolicy: Always
