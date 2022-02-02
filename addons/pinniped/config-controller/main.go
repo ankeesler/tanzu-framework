@@ -28,7 +28,10 @@ func main() {
 
 	ctrl.
 		NewControllerManagedBy(manager).
-		For(&corev1.ConfigMap{}, withNamespacedName(types.NamespacedName{Namespace: "kube-public", Name: "pinniped-info"})).
+		For(
+			&corev1.ConfigMap{},
+			withNamespacedName(types.NamespacedName{Namespace: "kube-public", Name: "pinniped-info"}),
+		).
 		Complete(&pinnipedInfoController{})
 
 	if err := manager.Start(ctrl.SetupSignalHandler()); err != nil {
