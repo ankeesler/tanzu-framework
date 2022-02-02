@@ -60,5 +60,9 @@ type pinnipedInfoController struct {
 
 func (c *pinnipedInfoController) Reconcile(ctx context.Context, req ctrl.Request) (reconcile.Result, error) {
 	log.Print("something happened to pinniped-info cm")
+
+	// TODO: loop through addon secrets and update pinniped.supervisor_svc_endpoint and supervisor_ca_bundle_data
+	// ...and see if workload cluster gets configured correctly :)
+
 	return reconcile.Result{}, nil
 }
