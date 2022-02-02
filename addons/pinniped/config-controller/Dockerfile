@@ -17,7 +17,10 @@ RUN go mod download
 # Copy the source
 COPY main.go main.go
 
-RUN go build -o pinniped-config-controller-manager .
+# Build
+ARG LD_FLAGS
+ENV LD_FLAGS="$LD_FLAGS "'-extldflags "-static"'
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -ldflags "$LD_FLAGS" -o pinniped-config-controller-manager .
 
 FROM gcr.io/distroless/static:nonroot
 WORKDIR /

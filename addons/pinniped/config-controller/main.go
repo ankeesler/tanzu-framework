@@ -17,6 +17,8 @@ import (
 // TODO: use tanzu logging solution (from controller-runtime?)
 
 func main() {
+	log.Print("starting")
+
 	manager, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		// TODO: do we want to set any of these options (e.g., webhook port, leader election)?
 	})
