@@ -32,7 +32,8 @@ func main() {
 			&corev1.ConfigMap{},
 			withNamespacedName(types.NamespacedName{Namespace: "kube-public", Name: "pinniped-info"}),
 		).
-		Complete(&pinnipedInfoController{})
+		// TODO: watch secrets so that we can ensure desired state is actual state
+		Complete(&pinnipedInfoController{client: manager.GetClient()})
 
 	if err := manager.Start(ctrl.SetupSignalHandler()); err != nil {
 		panic(err) // TODO: handle me
@@ -56,13 +57,64 @@ func withNamespacedName(namespacedName types.NamespacedName) builder.Predicates 
 }
 
 type pinnipedInfoController struct {
+	client client.Client
 }
 
 func (c *pinnipedInfoController) Reconcile(ctx context.Context, req ctrl.Request) (reconcile.Result, error) {
 	log.Print("something happened to pinniped-info cm")
 
-	// TODO: loop through addon secrets and update pinniped.supervisor_svc_endpoint and supervisor_ca_bundle_data
-	// ...and see if workload cluster gets configured correctly :)
+	// Get pinniped-info ConfigMap
+	pinnipedInfoCM := corev1.ConfigMap{}
+	if err := c.client.Get(ctx, req.NamespacedName, &pinnipedInfoCM); err != nil {
+		panic(err) // TODO: handle me
+	}
+
+	// Get Pinniped Supervisor info
+	supervisorAddress, ok := pinnipedInfoCM.Data["issuer"] // TODO: get rid of raw strings...
+	if !ok {
+		panic("couldn't find issuer") // TODO: handle me
+	}
+	supervisorCABundle, ok := pinnipedInfoCM.Data["issuer_ca_bundle_data"] // TODO: get rid of raw strings...
+	if !ok {
+		panic("couldn't find ca bundle") // TODO: handle me
+	}
+	log.Print("supervisorAddress:", supervisorAddress, "supervisorCABundle:", supervisorCABundle)
+
+	// Get all addon Secret's
+	addonSecrets := &corev1.SecretList{}
+	addonSecretLabel := client.MatchingLabels{"tkg.tanzu.vmware.com/addon-name": "pinniped"} // TODO: get rid of raw strings...
+	if err := c.client.List(ctx, addonSecrets, addonSecretLabel); err != nil {
+		panic(err) // TODO: handle me
+	}
+
+	// Loop through addon secrets and update pinniped.supervisor_svc_endpoint and
+	// supervisor_ca_bundle_data
+	for _, addonSecret := range addonSecrets.Items {
+		if err := c.updateSecret(ctx, &addonSecret); err != nil {
+			panic(err) // TODO: handle me
+		}
+	}
+
+	// TODO: ...and see if workload cluster gets configured correctly :)
+
+	// TODO: handle case where addon secret exists
+	// TODO: handle case where addon secret does not exist
+
+	// TODO: don't send a request if the addon secret is already up to date
 
 	return reconcile.Result{}, nil
 }
+
+func (c *pinnipedInfoController) updateSecret(ctx context.Context, addonSecret *corev1.Secret) error {
+	valuesYAML, ok := addonSecret.Data["values.yaml"] // TODO: get rid of raw strings...
+	if !ok {
+		panic("could not find data values") // TODO: handle me
+	}
+
+	log.Print("addonSecret:", addonSecret.Name, "valuesYAML:", valuesYAML)
+
+	return nil
+}
+
+// 10.206.210.94
+// 10.206.214.26
