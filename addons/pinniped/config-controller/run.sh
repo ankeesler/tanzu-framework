@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd addons/pinniped/config-controller
+set -e
 
 tag="dev"
 # tag="$(uuidgen)" # Uncomment to create random image every time

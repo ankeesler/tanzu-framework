@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -78,7 +79,7 @@ func (c *pinnipedInfoController) Reconcile(ctx context.Context, req ctrl.Request
 	if !ok {
 		panic("couldn't find ca bundle") // TODO: handle me
 	}
-	log.Print("supervisorAddress:", supervisorAddress, "supervisorCABundle:", supervisorCABundle)
+	log.Printf("supervisorAddress: %q, supervisorCABundle: %q", supervisorAddress, supervisorCABundle)
 
 	// Get all addon Secret's
 	addonSecrets := &corev1.SecretList{}
@@ -90,7 +91,7 @@ func (c *pinnipedInfoController) Reconcile(ctx context.Context, req ctrl.Request
 	// Loop through addon secrets and update pinniped.supervisor_svc_endpoint and
 	// supervisor_ca_bundle_data
 	for _, addonSecret := range addonSecrets.Items {
-		if err := c.updateSecret(ctx, &addonSecret); err != nil {
+		if err := c.updateSecret(ctx, &addonSecret, supervisorAddress, supervisorCABundle); err != nil {
 			panic(err) // TODO: handle me
 		}
 	}
@@ -105,16 +106,34 @@ func (c *pinnipedInfoController) Reconcile(ctx context.Context, req ctrl.Request
 	return reconcile.Result{}, nil
 }
 
-func (c *pinnipedInfoController) updateSecret(ctx context.Context, addonSecret *corev1.Secret) error {
+func (c *pinnipedInfoController) updateSecret(
+	ctx context.Context,
+	addonSecret *corev1.Secret,
+	supervisorAddress, supervisorCABundle string,
+) error {
 	valuesYAML, ok := addonSecret.Data["values.yaml"] // TODO: get rid of raw strings...
 	if !ok {
 		panic("could not find data values") // TODO: handle me
 	}
 
-	log.Print("addonSecret:", addonSecret.Name, "valuesYAML:", valuesYAML)
+	log.Printf("addonSecret: %q, valuesYAML: %q", addonSecret.Name, string(valuesYAML))
+
+	// TODO: best way to set these fields? Merge these values back into values.yaml? Use raw map?
+
+	values := struct {
+		Pinniped struct {
+			SupervisorSvcEndpoint  string `yaml:"supervisor_svc_endpoint"`
+			SupervisorCABundleData string `yaml:"supervisor_ca_bundle_data"`
+		} `yaml:"pinniped"`
+	}{}
+	if err := yaml.Unmarshal(valuesYAML, &values); err != nil {
+		panic("could not unmarshal values.yaml") // TODO: handle me
+	}
+
+	values.Pinniped.SupervisorSvcEndpoint = supervisorAddress
+	values.Pinniped.SupervisorCABundleData = supervisorCABundle
+
+	log.Printf("values: %#v", values)
 
 	return nil
 }
-
-// 10.206.210.94
-// 10.206.214.26
