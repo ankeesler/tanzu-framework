@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"log"
 
 	"gopkg.in/yaml.v2"
@@ -15,7 +17,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+// TODO: any other t-f controller conventions that we aren't following that we should follow?
 // TODO: use tanzu logging solution (from controller-runtime?)
+// TODO: provide a way to pause the controller
+// TODO: pass pinniped-info ConfigMap namespace and name via command line flags
+// TODO: why does the post-deploy job run again after we edit the pinniped-info cm?
+// TODO: why do the pinniped-supervisor pods seem to restart every time we update the pinniped-info cm?
 
 func main() {
 	log.Print("starting")
@@ -61,8 +68,12 @@ type pinnipedInfoController struct {
 	client client.Client
 }
 
+var reconcileCallCount = 0
+
 func (c *pinnipedInfoController) Reconcile(ctx context.Context, req ctrl.Request) (reconcile.Result, error) {
-	log.Print("something happened to pinniped-info cm")
+	// TODO: let's be aware of how often our controller is running since we are watching secrets (of which there are many)
+	log.Printf("Reconcile() call count: %d", reconcileCallCount)
+	reconcileCallCount++
 
 	// Get pinniped-info ConfigMap
 	pinnipedInfoCM := corev1.ConfigMap{}
@@ -91,15 +102,15 @@ func (c *pinnipedInfoController) Reconcile(ctx context.Context, req ctrl.Request
 	// Loop through addon secrets and update pinniped.supervisor_svc_endpoint and
 	// supervisor_ca_bundle_data
 	for _, addonSecret := range addonSecrets.Items {
-		if err := c.updateSecret(ctx, &addonSecret, supervisorAddress, supervisorCABundle); err != nil {
+		// TODO: do we actually need to DeepCopy()?
+		if err := c.updateSecret(ctx, addonSecret.DeepCopy(), supervisorAddress, supervisorCABundle); err != nil {
 			panic(err) // TODO: handle me
 		}
 	}
 
 	// TODO: ...and see if workload cluster gets configured correctly :)
 
-	// TODO: handle case where addon secret exists
-	// TODO: handle case where addon secret does not exist
+	// TODO: what if addon secret doesn't exist?
 
 	// TODO: don't send a request if the addon secret is already up to date
 
@@ -111,29 +122,63 @@ func (c *pinnipedInfoController) updateSecret(
 	addonSecret *corev1.Secret,
 	supervisorAddress, supervisorCABundle string,
 ) error {
-	valuesYAML, ok := addonSecret.Data["values.yaml"] // TODO: get rid of raw strings...
+	// Get old data values.
+	oldValuesYAML, ok := addonSecret.Data["values.yaml"] // TODO: get rid of raw strings...
 	if !ok {
 		panic("could not find data values") // TODO: handle me
 	}
 
-	log.Printf("addonSecret: %q, valuesYAML: %q", addonSecret.Name, string(valuesYAML))
-
-	// TODO: best way to set these fields? Merge these values back into values.yaml? Use raw map?
-
-	values := struct {
-		Pinniped struct {
-			SupervisorSvcEndpoint  string `yaml:"supervisor_svc_endpoint"`
-			SupervisorCABundleData string `yaml:"supervisor_ca_bundle_data"`
-		} `yaml:"pinniped"`
-	}{}
-	if err := yaml.Unmarshal(valuesYAML, &values); err != nil {
+	// Unmarshal old data values into map.
+	values := make(map[string]interface{})
+	if err := yaml.Unmarshal(oldValuesYAML, &values); err != nil {
 		panic("could not unmarshal values.yaml") // TODO: handle me
 	}
 
-	values.Pinniped.SupervisorSvcEndpoint = supervisorAddress
-	values.Pinniped.SupervisorCABundleData = supervisorCABundle
+	// Set supervisor info in data values.
+	pinnipedValue, ok := values["pinniped"]
+	if !ok {
+		panic("could not find .pinniped value path") // TODO: handle me
+	}
+	pinnipedMapValue, ok := pinnipedValue.(map[interface{}]interface{})
+	if !ok {
+		panic(fmt.Sprintf(".pinniped value is unexpected type (got %T: %+v)", pinnipedValue, pinnipedValue)) // TODO: handle me
+	}
+	pinnipedMapValue["supervisor_svc_endpoint"] = supervisorAddress
+	pinnipedMapValue["supervisor_ca_bundle_data"] = supervisorCABundle
 
-	log.Printf("values: %#v", values)
+	// Marshal new data values.
+	newValuesYAML, err := yaml.Marshal(values)
+	if err != nil {
+		panic(err) // TODO: handle me
+	}
+
+	// Prepend new values with YTT data values directive.
+	// TODO: this is ugly, let's not do this.
+	yttDataValuesDirective := `#@data/values
+#@overlay/match-child-defaults missing_ok=True
+---`
+	newValuesYAML = []byte(fmt.Sprintf("%s\n%s\n", yttDataValuesDirective, newValuesYAML))
+
+	log.Printf(
+		"addonSecret: %s/%s, oldValuesYAML: %q, newValuesYAML: %q",
+		addonSecret.Namespace,
+		addonSecret.Name,
+		string(oldValuesYAML),
+		string(newValuesYAML),
+	)
+
+	// If we don't have any updates to make to the data values, then don't call the API.
+	if bytes.Equal(oldValuesYAML, newValuesYAML) {
+		return nil
+	}
+
+	// Update the Secret.
+	// TODO: do we care that this is going to wipe out all YAML comments in data values?
+	addonSecret.Data["values.yaml"] = newValuesYAML // TODO: get rid of raw strings...
+	// TODO: is Update() ok or do we want Patch()?
+	if err := c.client.Update(ctx, addonSecret); err != nil {
+		panic(err) // TODO: handle me
+	}
 
 	return nil
 }
