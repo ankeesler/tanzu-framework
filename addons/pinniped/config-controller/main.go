@@ -90,7 +90,7 @@ func (c *pinnipedInfoController) Reconcile(ctx context.Context, req ctrl.Request
 	if !ok {
 		panic("couldn't find ca bundle") // TODO: handle me
 	}
-	log.Printf("supervisorAddress: %q, supervisorCABundle: %q", supervisorAddress, supervisorCABundle)
+	log.Printf("supervisorAddress: %q, supervisorCABundle: %d chars", supervisorAddress, len(supervisorCABundle))
 
 	// Get all addon Secret's
 	addonSecrets := &corev1.SecretList{}
