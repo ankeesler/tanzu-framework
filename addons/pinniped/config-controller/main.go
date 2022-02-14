@@ -43,6 +43,7 @@ func main() {
 		// TODO: watch secrets so that we can ensure desired state is actual state
 		Complete(&pinnipedInfoController{client: manager.GetClient()})
 
+	log.Print("starting manager")
 	if err := manager.Start(ctrl.SetupSignalHandler()); err != nil {
 		panic(err) // TODO: handle me
 	}
