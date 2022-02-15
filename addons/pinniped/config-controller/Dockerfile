@@ -5,7 +5,7 @@
 # top of their own trusted images.
 ARG BUILDER_BASE_IMAGE=golang:1.17
 
-# Build the post-deploy binary
+# Build the config-controller-manager binary
 FROM $BUILDER_BASE_IMAGE as builder
 
 WORKDIR /workspace

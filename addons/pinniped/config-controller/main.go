@@ -27,6 +27,7 @@ import (
 func main() {
 	log.Print("starting")
 
+	// Create manager to run our controller.
 	manager, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		// TODO: do we want to set any of these options (e.g., webhook port, leader election)?
 	})
@@ -34,15 +35,20 @@ func main() {
 		panic(err) // TODO: handle me
 	}
 
+	// Tell manager about controller.
 	ctrl.
+		// Create controller with manager.
 		NewControllerManagedBy(manager).
+		// Say what objects the controller should watch.
 		For(
 			&corev1.ConfigMap{},
 			withNamespacedName(types.NamespacedName{Namespace: "kube-public", Name: "pinniped-info"}),
 		).
+		// Provide the actual controller code that runs to reconcile the system.
 		// TODO: watch secrets so that we can ensure desired state is actual state
 		Complete(&pinnipedInfoController{client: manager.GetClient()})
 
+	// Tell manager to start running our controller.
 	log.Print("starting manager")
 	if err := manager.Start(ctrl.SetupSignalHandler()); err != nil {
 		panic(err) // TODO: handle me
@@ -148,6 +154,7 @@ func (c *pinnipedInfoController) updateSecret(
 	pinnipedMapValue["supervisor_ca_bundle_data"] = supervisorCABundle
 
 	// Marshal new data values.
+	// TODO: remarshaling will change the order of the YAML data structure which could be messy
 	newValuesYAML, err := yaml.Marshal(values)
 	if err != nil {
 		panic(err) // TODO: handle me

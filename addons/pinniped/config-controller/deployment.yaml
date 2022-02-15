@@ -3,7 +3,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: pinniped
+  name: pinniped #! TODO: what should this be?
 ---
 apiVersion: v1
 kind: ServiceAccount
