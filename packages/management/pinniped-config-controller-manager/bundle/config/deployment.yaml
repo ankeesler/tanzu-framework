@@ -3,22 +3,22 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: pinniped #! TODO: what should this be?
+  name: #@ data.values.namespace
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: pinniped-config-controller-manager
-  namespace: pinniped
+  namespace: #@ data.values.namespace
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: pinniped-config-controller-manager
 subjects:
-  - kind: ServiceAccount
-    name: pinniped-config-controller-manager
-    namespace: pinniped
+- kind: ServiceAccount
+  name: pinniped-config-controller-manager
+  namespace: #@ data.values.namespace
 roleRef:
   kind: ClusterRole
   name: pinniped-config-controller-manager
@@ -28,7 +28,7 @@ kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: pinniped-config-controller-manager
-  namespace: pinniped
+  namespace: #@ data.values.namespace
 spec:
   selector:
     matchLabels:
@@ -40,5 +40,5 @@ spec:
     spec:
       serviceAccountName: pinniped-config-controller-manager
       containers:
-      - image: #@ data.values.image
+      - image: pinniped-config-controller-manager:latest
         name: pinniped-config-controller-manager

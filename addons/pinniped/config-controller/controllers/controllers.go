@@ -76,7 +76,7 @@ func (c *PinnipedController) SetupWithManager(manager ctrl.Manager) error {
 }
 
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=list;watch;get;patch;update;delete
-// +kubebuilder:rbac:groups="",resources=configmaps,verbs=watch;get
+// +kubebuilder:rbac:groups="",resources=configmaps,verbs=list;watch;get
 // +kubebuilder:rbac:groups="cluster.x-k8s.io",resources=clusters,verbs=list;watch;get
 
 func (c *PinnipedController) Reconcile(ctx context.Context, req ctrl.Request) (reconcile.Result, error) {
