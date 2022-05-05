@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/aunum/log"
 	"github.com/pkg/errors"
@@ -92,14 +93,11 @@ func getPinnipedKubeconfig(tkgctlClient tkgctl.TKGClient, workloadClusterName st
 
 	clusterPinnipedInfo, err := tkgctlClient.GetClusterPinnipedInfo(getClusterPinnipedInfoOptions)
 	if err != nil {
-		return err
+		return fmt.Errorf("get cluster pinniped info: %w", err)
 	}
 
-	// for workload cluster the audience would be set to the clustername
-	audience := clusterPinnipedInfo.ClusterName
-
 	kubeconfig, err := tkgauth.GetPinnipedKubeconfig(clusterPinnipedInfo.ClusterInfo, clusterPinnipedInfo.PinnipedInfo,
-		clusterPinnipedInfo.ClusterName, audience)
+		clusterPinnipedInfo.ClusterName, clusterPinnipedInfo.ClusterAudience)
 
 	if err != nil {
 		return errors.Wrap(err, "unable to get kubeconfig")

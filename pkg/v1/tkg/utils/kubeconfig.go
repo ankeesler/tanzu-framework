@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -14,6 +15,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
@@ -168,7 +171,7 @@ func GetPinnipedInfoFromCluster(clusterInfo *clientcmdapi.Cluster) (*PinnipedCon
 
 	response, err := clusterClient.Do(req)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get pinniped-info from the cluster")
+		return nil, errors.Wrap(err, "failed to make http request")
 	}
 	defer response.Body.Close()
 
@@ -176,7 +179,7 @@ func GetPinnipedInfoFromCluster(clusterInfo *clientcmdapi.Cluster) (*PinnipedCon
 		if response.StatusCode == http.StatusNotFound {
 			return nil, nil
 		}
-		return nil, errors.New("failed to get pinniped-info from the cluster")
+		return nil, fmt.Errorf("failed to get pinniped-info from the cluster: %d", response.StatusCode)
 	}
 
 	responseBody, err := io.ReadAll(response.Body)
@@ -191,4 +194,74 @@ func GetPinnipedInfoFromCluster(clusterInfo *clientcmdapi.Cluster) (*PinnipedCon
 	}
 
 	return &pinnipedConfigMapInfo, nil
+}
+
+func GetJWTAuthenticatorAudienceFromCluster(clusterInfo *clientcmdapi.Cluster) (string, error) {
+	endpoint := strings.TrimRight(clusterInfo.Server, " /")
+	pinnipedInfoURL := endpoint + "/apis/authentication.concierge.pinniped.dev/v1alpha1/jwtauthenticators/tkg-jwt-authenticator"
+	//nolint:noctx
+	req, err := http.NewRequest("GET", pinnipedInfoURL, http.NoBody)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to create http request")
+	}
+	req.Header.Set("content-type", "application/json")
+
+	pool := x509.NewCertPool()
+	pool.AppendCertsFromPEM(clusterInfo.CertificateAuthorityData)
+	clusterClient := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			TLSClientConfig: &tls.Config{
+				RootCAs:    pool,
+				MinVersion: tls.VersionTLS12,
+			},
+		},
+		Timeout: time.Second * 10,
+	}
+	// TODO: should we use pinniped client? Dependencies would get annoying...
+
+	response, err := clusterClient.Do(req)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to make http request")
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("http request returned non-200 status %d", response.StatusCode)
+	}
+
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to read the response body")
+	}
+
+	obj, gvk, err := unstructured.UnstructuredJSONScheme.Decode(responseBody, nil, nil)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to decode response body")
+	}
+	wantGVK := schema.GroupVersionKind{
+		Group:   "authentication.concierge.pinniped.dev",
+		Version: "v1alpha1",
+		Kind:    "JWTAuthenticator",
+	}
+	if gvk == nil || *gvk != wantGVK {
+		return "", fmt.Errorf("unexpected gvk in response (got %q, want %q): %w", gvk, wantGVK, err)
+	}
+
+	unstructredObj, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		return "", fmt.Errorf("unexpected obj type (got %T, want %T)", obj, &unstructured.Unstructured{})
+	}
+
+	unstructuredObjSpec, ok := unstructredObj.Object["spec"].(map[string]string)
+	if !ok {
+		return "", fmt.Errorf("unexpected obj spec type (got %T, want %T)", unstructredObj.Object["spec"], map[string]string{})
+	}
+
+	audience, ok := unstructuredObjSpec["audience"]
+	if !ok {
+		return "", errors.New("audience missing from spec")
+	}
+
+	return audience, nil
 }

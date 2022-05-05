@@ -25,9 +25,10 @@ type GetClusterPinnipedInfoOptions struct {
 
 // ClusterPinnipedInfo defines the fields of cluster pinniped info
 type ClusterPinnipedInfo struct {
-	ClusterName  string
-	ClusterInfo  *clientcmdapi.Cluster
-	PinnipedInfo *utils.PinnipedConfigMapInfo
+	ClusterName     string
+	ClusterAudience string
+	ClusterInfo     *clientcmdapi.Cluster
+	PinnipedInfo    *utils.PinnipedConfigMapInfo
 }
 
 // GetClusterPinnipedInfo gets pinniped information from cluster
@@ -88,6 +89,11 @@ func (c *TkgClient) GetWCClusterPinnipedInfo(regionalClusterClient clusterclient
 		return nil, errors.Wrap(err, "failed to get pinniped-info from workload cluster")
 	}
 
+	audience, err := utils.GetJWTAuthenticatorAudienceFromCluster(wcClusterInfo)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get jwt authenticator audience from workload cluster")
+	}
+
 	pinnipedInfo := managementClusterPinnipedInfo
 	if workloadClusterPinnipedInfo != nil {
 		// Get ConciergeIsClusterScoped from workload cluster in case it is different from the management cluster
@@ -98,9 +104,10 @@ func (c *TkgClient) GetWCClusterPinnipedInfo(regionalClusterClient clusterclient
 	}
 
 	return &ClusterPinnipedInfo{
-		ClusterName:  options.ClusterName,
-		ClusterInfo:  wcClusterInfo,
-		PinnipedInfo: pinnipedInfo,
+		ClusterName:     options.ClusterName,
+		ClusterAudience: audience,
+		ClusterInfo:     wcClusterInfo,
+		PinnipedInfo:    pinnipedInfo,
 	}, nil
 }
 
