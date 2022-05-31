@@ -21,6 +21,9 @@ import (
 )
 
 func main() {
+	var runController bool
+	flag.BoolVar(&runController, "run-controller", false, "run only the pinniped status controller (and not the job)")
+
 	// optional
 	flag.BoolVar(&vars.ConciergeIsClusterScoped, "concierge-is-cluster-scoped", vars.ConciergeIsClusterScoped, "Whether the Pinniped Concierge APIs are cluster-scoped")
 
@@ -95,6 +98,14 @@ func main() {
 		os.Exit(1) // nolint:gocritic
 	}
 
+	if runController {
+		if err := doRunController(); err != nil {
+			logger.Error(err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if err := configure.TKGAuthentication(clients); err != nil {
 		logger.Error(err)
 		os.Exit(1)
@@ -123,4 +134,9 @@ func initClients() (configure.Clients, error) {
 		ConciergeClientset:   pinnipedconciergeclientset.NewForConfigOrDie(cfg),
 		CertmanagerClientset: certmanagerclientset.NewForConfigOrDie(cfg),
 	}, nil
+}
+
+func doRunController() error {
+	// return statuscontroller.New().SetupWithManager(mgr)
+	return nil
 }
